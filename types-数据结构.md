@@ -1,12 +1,14 @@
 [TOC]
 
-> 乱序
+> 1. `value_type`的实现细节暂时先不考虑。
 
 # Complex
 
 > 类似于`std::complex`，但是它通过字段访问（std使用方法访问）。
 
 * 模板类
+
+*注意`类型转换`的==模板函数==怎么写！*
 
 ```c++
 template<typename _Tp> class Complex
@@ -62,9 +64,21 @@ Complex<_Tp>::operator Complex<T2>() const
 }
 ```
 
+```c++
+template<typename _Tp> inline
+Complex<_Tp> Complex<_Tp>::conj() const
+{
+    return Complex<_Tp>(re, -im);
+}
+```
+
 **运算符重载**
 
-> 注意：这是一个==完整的==运算符重载组！
+> 注意：
+>
+> * 这些重载的运算符函数都==**不是**成员函数==！
+>
+> * 这是一个==完整的==运算符重载组！
 
 ```c++
 template<typename _Tp> static inline
@@ -276,7 +290,425 @@ Complex<_Tp> operator /= (const Complex<_Tp>& a, _Tp b)
 
 # Point_
 
+> `2D点`类，同样做了一整套运算符重载。
 
+* 模板类
+
+*注意区分`拷贝构造`与`运算符重载`！*
+
+```c++
+template<typename _Tp> class Point_
+{
+public:
+    typedef _Tp value_type;
+    
+    //! default constructor
+    Point_();
+    Point_(_Tp _x, _Tp _y);
+    Point_(const Point_& pt);
+    Point_(Point_&& pt) CV_NOEXCEPT;
+    Point_(const Size_<_Tp>& sz);
+    Point_(const Vec<_Tp, 2>& v);
+    
+    Point_& operator = (const Point_& pt);
+    Point_& operator = (Point_&& pt) CV_NOEXCEPT;
+    //! conversion to another data tye
+    template<typename _Tp2> operator Point_<_Tp2>() const;
+    
+    //! conversion to the old-style C structures
+    operator Vec<_Tp, 2>() const;
+    
+    //! dot product
+    _Tp dot(const Point_& pt) const;
+    //! dot product computed in double-precision arithmetics
+    double ddot(const Point_& pt) const;
+    //! cross-product
+    double cross(const Point_& pt) const;
+    //! checks whether the point is inside the specified rectangle
+    bool inside(const Rect_<Tp>& r) const;
+    _Tp x;	//!< x coordinate of the point
+    _Tp y;	//!< y coordinate of the point
+};
+```
+
+* 特化
+
+```c++
+typedef Point_<int> Point2i;
+typedef Point_<int64> Point2l;
+typedef Point_<float> Point2f;
+typedef Point_<double> Point2d;
+typedef Point2i Point;
+```
+
+* 实现
+
+构造函数
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp>::Point_():x(0), y(0)
+{}
+```
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp>::Point_(_Tp _x, _Tp _y)
+    :x(_x), y(_y)
+{}
+```
+
+```c++
+template<typenmae _Tp> inline
+Point_<_Tp>::Point_(const Point_& pt)
+    :x(pt.x), y(pt.y)
+{}
+```
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp>::Point_(Point_&& pt) CV_NOEXCEPT
+    :x(std::move(pt.x)), y(std::move(pt.y))
+{}
+```
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp>::Point_(const Size_<_Tp>& sz)
+    :x(sz.width), y(sz.height)
+{}
+```
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp>::Point_(const Vec<_Tp, 2>& v)
+    :x(v[0]), y(v[1])
+{}
+```
+
+拷贝构造
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp>& Point_<_Tp>::operator = (const Point_& pt)
+{
+    x = pt.x;
+    y = pt.y;
+    return *this;
+}
+```
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp>& Point_<_Tp>::operator = (Point_&& pt) CV_NOEXCEPT
+{
+    x = std::move(pt.x);
+    y = std::move(pt.y);
+    return *this;
+}
+```
+
+类型转换
+
+```c++
+template<typename _Tp> template<typename _Tp2> inline
+Point_<_Tp>::operator Point_<_Tp2>() const
+{
+    return Point_<_Tp2>(saturate_cast<_Tp2>(x), saturate_cast<_Tp2>(y));
+}
+```
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp>::operator Vec<_Tp, 2>() const
+{
+    return Vec<_Tp, 2>(x, y);
+}
+```
+
+操作
+
+```c++
+template<typename _Tp> inline
+_Tp Point_<_Tp>::dot(const Point_& pt) const
+{
+    return saturate_cast<_Tp>(x*pt.x + y*pt.y);
+}
+```
+
+```c++
+template<typename _Tp> inline
+double Point_<_Tp>::ddot(const Point_& pt) const
+{
+    return (double)x*pt.x+(double)y*pt.y;
+}
+```
+
+```c++
+template<typename _Tp> inline
+double Point_<_Tp>::cross(const Point_& pt) const
+{
+    return (double)x*pt.y - (double)y*pt.x;
+}
+```
+
+```c++
+template<typename _Tp> inline
+bool Point_<_Tp>::inside(const Rect_<_Tp>& r)const
+{
+    return r.contains(*this);
+}
+```
+
+运算符重载（一元）
+
+==注意这个`-`==
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator - (const Point_<_Tp>& a)
+{
+    return Point_<_Tp>( saturate_cast<_Tp>(-a.x), saturate_cast<_Tp>(-a.y) );	// 为什么要使用类型转换呢？
+}
+```
+
+运算符重载（二元）
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp>& operator += (Point_<_Tp>& a, const Point_<_Tp>& b)
+{
+    a.x += b.x;
+    a.y += b.y;
+    return a;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp>& operator -= (Point_<_Tp>& a, const Point_<_Tp>& b)
+{
+    a.x -= b.x;
+    a.y -= b.y;
+    return a;
+}
+```
+
+==注意这里只定义了乘法以及除法的细节！==
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator * (const Point_<_Tp>& a, int b)
+{
+    return Point_<_Tp>( saturate_cast<_Tp>(a.x*b), saturate_cast<_Tp>(a.y*b) );
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator * (int a, const Point_<_Tp>& b)
+{
+    return Point_<_Tp>( saturate_cast<_Tp>(b.x*a), saturate_cast<_Tp>(b.y*a) );
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator * (const Point_<_Tp>& a, float b)
+{
+    return Point_<_Tp>( saturate_cast<_Tp>(a.x*b), saturate_cast<_Tp>(a.y*b) );
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator * (float a, const Point_<_Tp>& b)
+{
+    return Point_<_Tp>( saturate_cast<_Tp>(b.x*a), saturate_cast<_Tp>(b.y*a) );
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator * (const Point_<_Tp>& a, double b)
+{
+    return Point_<_Tp>( saturate_cast<_Tp>(a.x*b), saturate_cast<_Tp>(a.y*b) );
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator * (double a, const Point_<_Tp>& b)
+{
+    return Point_<_Tp>( saturate_cast<_Tp>(b.x*a), saturate_cast<_Tp>(b.y*a) );
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp>& operator *= (Point_<_Tp>& a, int b)
+{
+    a.x = saturate_cast<_Tp>(a.x * b);
+    a.y = saturate_cast<_Tp>(a.y * b);	// 这里的a.x, a.y不需要先进行类型转换吗？
+    return a;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp>& operator *= (Point_<_Tp>& a, float b)
+{
+    a.x = saturate_cast<_Tp>(a.x * b);
+    a.y = saturate_cast<_Tp>(a.y * b);
+    return a;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp>& operator *= (Point_<_Tp>& a, double b)
+{
+    a.x = saturate_cast<_Tp>(a.x * b);
+    a.y = saturate_cast<_Tp>(a.y * b);
+    return a;
+}
+```
+
+**其它乘法操作**（这个Matx挺复杂的吧）
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator * (const Matx<_Tp, 2, 2>& a, const Point_<_Tp>& b)
+{
+    Matx<_Tp, 2, 1> tmp = a * Vec<_Tp, 2>(b.x, b.y);
+    return Point_<_Tp>(tmp.val[0], tmp.val[1]);
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point3_<_Tp> operator * (const Matx<_Tp, 3, 3>& a, const Point_<_Tp>& b)
+{
+    Matx<_Tp, 3, 1> tmp = a * Vec<_Tp, 3>(b.x, b.y, 1);
+    return Point3_<_Tp>(tmp.val[0], tmp.val[1], tmp.val[2]);
+}
+```
+
+---
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator / (const Point_<_Tp>& a, int b)
+{
+    Point_<_Tp> tmp(a);
+    tmp /= b;
+    return tmp;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator / (const Point_<_Tp>& a, float b)
+{
+    Point_<_Tp> tmp(a);
+    tmp /= b;
+    return tmp;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp> operator / (const Point_<_Tp>& a, double b)
+{
+    Point_<_Tp> tmp(a);
+    tmp /= b;
+    return tmp;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp>& operator /= (Point_<_Tp>& a, int b)
+{
+    a.x = saturate_cast<_Tp>(a.x / b);
+    a.y = saturate_cast<_Tp>(a.y / b);
+    return a;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp>& operator /= (Point_<_Tp>& a, float b)
+{
+    a.x = saturate_cast<_Tp>(a.x / b);
+    a.y = saturate_cast<_Tp>(a.y / b);
+    return a;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Point_<_Tp>& operator /= (Point_<_Tp>& a, double b)
+{
+    a.x = saturate_cast<_Tp>(a.x / b);
+    a.y = saturate_cast<_Tp>(a.y / b);
+    return a;
+}
+```
+
+自定义运算符
+
+```c++
+template<typename _Tp> static inline
+double norm(const Point_<_Tp>& pt)
+{
+    return std::sqrt((double)pt.x * pt.x + (double)pt.y * pt.y);
+}
+```
+
+---
+
+**<u>看不懂这些模板函数，自己在vs上复现一下看看实现的是什么。</u>**
+
+[git](git@github.com:CPlusPlus-AWILL/TemplatePractice.git)
+
+```c++
+template<typename _AccTp> static inline _AccTp normL2Sqr(const Point_<int>& pt);
+template<typename _AccTp> static inline _AccTp normL2Sqr(const Point_<int64>& pt);
+template<typename _AccTp> static inline _AccTp normL2Sqr(const Point_<float>& pt);
+template<typename _AccTp> static inline _AccTp normL2Sqr(const Point_<double>& pt);
+```
+
+```c++
+template<> inline int normL2Sqr<int>(const Point_<int>& pt)
+{
+    return pt.dot(pt);
+}
+template<> inline int64 normL2Sqr<int64>(const Point_<int64>& pt)
+{
+    return pt.dot(pt);
+}
+template<> inline float normL2Sqr<float>(const Point_<float>& pt)
+{
+    return pt.dot(pt);
+}
+template<> inline double normL2Sqr<double>(const Point_<int>& pt)
+{
+    return pt.dot(pt);
+}
+template<> inline double normL2Sqr<double>(const Point_<float>& pt)
+{
+    return pt.ddot(pt);
+}
+template<> inline double normL2Sqr<double>(const Point_<double>& pt)
+{
+    return pt.ddot(pt);
+}
+```
+
+# Point3_
+
+> 由`x`、`y`、`z`三个坐标定义。类的结构大体上类似于`Point2_`，也可以与C结构进行类型转换。
 
 # Rect_
 
