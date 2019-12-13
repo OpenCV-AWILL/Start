@@ -710,6 +710,181 @@ template<> inline double normL2Sqr<double>(const Point_<double>& pt)
 
 > 由`x`、`y`、`z`三个坐标定义。类的结构大体上类似于`Point2_`，也可以与C结构进行类型转换。
 
+* 模板类
+
+```c++
+template<typename _Tp> class Point3_
+{
+public:
+    typedef _Tp value_type;
+    
+    //! default constructor
+    Point3_();
+    Point3_(_Tp _x, _Tp _y, _Tp _z);
+    Point3_(const Point3_& pt);
+    Point3_(const Point3_&& pt) CV_NOEXCEPT;
+    explicit Point3_(const Point_<_Tp>& pt);
+    Point3_(const Vec<_Tp, 3>& v);
+
+    Point3_& operator = (const Point3_& pt);
+    Point3_& operator = (Point3_&& pt) CV_NOEXCEPT;
+    //! conversion to another data type
+    template<typename _Tp2> operator Point3_<_Tp2>() const;
+    //! conversion to cv::Vec<>
+    operator Vec<_Tp, 3>() const;
+    
+    //! dot product
+    _Tp dot(const Point3_& pt) const;
+    //! dot product computed in double-precision arithmetics
+    double ddot(const Point3_& pt) const;
+    //! cross product of the 2 3D points
+    Point3_ cross(const Point3_& pt) const;
+    _Tp x;	//!< x coordinate of the 3D point
+    _Tp y;	//!< y coordinate of the 3D point
+    _Tp z;	//!< z coordinate of the 3D point
+};
+```
+
+* 特化
+
+```c++
+typedef Point3_<int> Point3i;
+typedef Point3_<float> Point3f;
+typedef Point3_<double> Point3d;
+```
+
+* 实现
+
+构造函数
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp>::Point3_()
+    :x(0), y(0), z(0)
+{}
+```
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp>::Point3_(_Tp _x, _Tp _y, _Tp _z)
+    :x(_x), y(_y), z(_z)
+{}
+```
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp>::Point3_(const Point3_& pt)
+    :x(pt.x), y(pt.y), z(pt.z)
+{}
+```
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp>::Point3_(Point3_&& pt) CV_NOEXCEPT
+    :x(std::move(pt.x)), y(std::move(pt.y)), z(std::move(pt.z))
+{}
+```
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp>::Point3_(const Point_<_Tp>& pt)
+    :x(pt.x), y(pt.y), z(_Tp())
+{}
+```
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp>::Point3_(const Vec<_Tp, 3>& v)
+    :x(v[0]), y(v[1]), z(v[2])
+{}
+```
+
+类型转换
+
+```c++
+template<typename _Tp> template<typename _Tp2> inline
+Point3_<_Tp>::operator Point3_<_Tp2>() const
+{
+    return Point3_<_Tp2>(saturate_cast<_Tp2>(x), saturate_cast<_Tp2>(y), saturate_cast<_Tp2>(z));
+}
+```
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp>::operator Vec<_Tp, 3>() const
+{
+    return Vec<_Tp, 3>(x, y, z);
+}
+```
+
+拷贝构造
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp>& Point3_<_Tp>::operator = (const Point3_& pt)
+{
+    x = pt.x;
+    y = pt.y;
+    z = pt.z;
+    return *this;
+}
+```
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp>& Point3_<_Tp>::operator = (Point3_&& pt) CV_NOEXCEPT
+{
+    x = std::move(pt.x);
+    y = std::move(pt.y);
+    z = std::move(pt.z);
+    return *this;
+}
+```
+
+操作
+
+==这个模板类型<>省略和不省略的区别是什么？看一下C++ Primer吧。==
+
+省略与否应该是不影响函数签名的。
+
+因为在编译器里面我已经试过了，编译出来的函数签名是完全一致的。
+
+***这样写反而让我很迷惑。***
+
+```c++
+template<typename _Tp> inline
+_Tp Point3_<_Tp>::dot(const Point3_& pt) const
+{
+    return saturate_cast<_Tp>(x*pt.x + y*pt.y + z*pt.z);
+}
+```
+
+```c++
+template<typename _Tp> inline
+double Point3_<_Tp>::ddot(const Point3_& pt) const
+{
+    return (double)x*pt.x + (double)y*pt.y + (double)z*pt.z;
+}
+```
+
+cross的数学意义是什么？*可能需要补充一些高数的知识了。*
+
+```c++
+template<typename _Tp> inline
+Point3_<_Tp> Point3_<_Tp>::cross(const Point3_<_Tp>& pt) const
+{
+    return Point3_<_Tp>(y*pt.z - z*pt.y, z*pt.x - x*pt.z, x*pt.y - y*pt.x);
+}
+```
+
+运算符重载
+
+粗略看一遍直接跳过吧。都差不多一个样。
+
+# Size_
+
+
+
 # Rect_
 
 > 1. 使用以下几个参数进行描述：
