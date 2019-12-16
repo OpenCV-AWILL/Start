@@ -883,7 +883,85 @@ Point3_<_Tp> Point3_<_Tp>::cross(const Point3_<_Tp>& pt) const
 
 # Size_
 
+> 这个简单的模板类用来指定图像/矩形的尺寸——使用`width`和`height`。
 
+* 模板类
+
+```c++
+template<typename _Tp> class Size_
+{
+public:
+    typedef _Tp value_type;
+    
+    //! default constructor
+    Size_();
+    Size_(_Tp _width, _Tp _height);
+    Size_(const Size_& sz);
+    Size_(Size_&& sz) CV_NOEXCEPT;
+    //! the area (width*height)
+    _Tp area() const;
+    //! aspect ratio (width/height)
+    double aspectRatio() const;
+    //! true if empty
+    bool empty() const;
+    
+    //! conversion of another data type
+    template<typename _Tp2> operator Size_<_Tp2>() const;
+    
+    _Tp width;	//!< the width
+    _Tp height;	//!< the height
+};
+```
+
+* 特化
+
+```c++
+typedef Size_<int> Size2i;
+typedef Size_<int64> Size2l;
+typedef Size_<float> Size2f;
+typedef Size_<double> Size2d;
+typedef Size2i Size;
+```
+
+* 实现
+
+构造函数
+
+```c++
+template<typename _Tp> inline
+Size_<_Tp>::Size_()
+    :width(0), height(0) {}
+```
+
+...
+
+操作
+
+```c++
+template<typename _Tp> inline
+_Tp Size_<_Tp>::area() const
+{
+    const _Tp result = width * height;
+    CV_DbgAssert(!std::numeric_limits<_Tp>::is_integer || width == 0 || result / width == height);	// make sure the result fits in the return value
+    return result;
+}
+```
+
+```c++
+template<typename _Tp> inline
+double Size_<_Tp>::aspectRatio() const
+{
+    return width / static_cast<double>(height);
+}
+```
+
+```c++
+template<typename _Tp> inline
+bool Size_<_Tp>::empty() const
+{
+    return width <= 0 || height <= 0;
+}
+```
 
 # Rect_
 
@@ -914,7 +992,7 @@ Point3_<_Tp> Point3_<_Tp>::cross(const Point3_<_Tp>& pt) const
 >     rect == rect1, rect != rect1;	// 比较
 >     ```
 >
->     
+> 4. 注意它的一些扩展操作。如平移、膨胀、&、|、+、-、>=
 
 * 模板类
 
@@ -965,5 +1043,142 @@ typedef Rect_<int> Rect2i;
 typedef Rect_<float> Rect2f;
 typedef Rect_<double> Rect2d;
 typedef Rect2i Rect;
+```
+
+* 实现
+
+构造
+
+```c++
+template<typename _Tp> inline
+Rect_<_Tp>::Rect_(const Point_<_Tp>& pt1, const Point_<_Tp>& pt2)
+{
+    x = std::min(pt1.x, pt2.x);
+    y = std::min(pt1.y, pt2.y);
+    width = std::max(pt1.x, pt2.x) - x;
+    height = std::max(pt1.y, pt2.y) - y;
+}
+```
+
+操作
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp> Rect_<_Tp>::tl() const
+{
+    return Point_<_Tp>(x, y);
+}
+```
+
+```c++
+template<typename _Tp> inline
+Point_<_Tp> Rect_<_Tp>::br() const
+{
+    return Point_<_Tp>(x + width, y + height);
+}
+```
+
+```c++
+template<typename _Tp> inline
+Size_<_Tp> Rect_<_Tp>::size() const
+{
+    return Size_<_Tp>(width, height);
+}
+```
+
+```c++
+template<typename _Tp> inline
+_Tp Rect_<_Tp>::area() const
+{
+    const _Tp result = width *height;
+    CV_DbgAssert(!std::numeric_limits<_Tp>::is_integer || width == 0 || result / width == height);	// make sure the result fits in the return value
+    return result;
+}
+```
+
+```c++
+template<typename _Tp> inline
+bool Rect_<_Tp>empty() const
+{
+    return width <= 0 || height <= 0;
+}
+```
+
+```c++
+template<typename _Tp> inline
+bool Rect_<_Tp>::contains(const Point_<_Tp>& pt) const
+{
+    return x <= pt.x && pt.x < x + width && y <= pt.y && pt.y < y + height;
+}
+```
+
+运算符的操作
+
+```c++
+template<typename _Tp> static inline
+Rect_<_Tp>& operator += (Rect_<_Tp>& a, const Point_<_Tp>& b)
+{
+    a.x += b.x;
+    a.y += b.y;
+    return a;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Rect_<_Tp>& operator += (Rect_<_Tp>& a, const Size_<_Tp>& b)
+{
+    a.width += b.width;
+    a.height += b.height;
+    return a;
+}
+```
+
+与或操作==注意为什么&和|的条件判断为什么会不一样？==
+
+```c++
+template<typename _Tp> static inline
+Rect_<_Tp>& operator &= (Rect_<_Tp>& a, const Rect_<_Tp>& b)
+{
+    _Tp x1 = std::max(a.x, b.x);
+    _Tp y1 = std::max(a.y, b.y);
+    a.width = std::min(a.x + a.width, b.x + b.width) - x1;
+    a.height = std::min(a.y + a.height, b.y + b.height) - y1;
+    a.x = x1;
+    a.y = y1;
+    if(a.width <= 0 || a.height <= 0)
+    	a = Rect();
+    return a;
+}
+```
+
+```c++
+template<typename _Tp> static inline
+Rect_<_Tp>& operator |= (Rect_<_Tp>& a, const Rect_<_Tp>& b)
+{
+    if(a.empty()){
+        a = b;
+    }
+    else if(!b.empty())
+    {
+        _Tp x1 = std::min(a.x, b.x);
+        _Tp y1 = std::min(a.y, b.y);
+        a.width = std::max(a.x + a.width, b.x + b.width) - x1;
+        a.height = std::max(a.y + a.height, b.y + b.height) - y1;
+        a.x = x1;
+        a.y = y1;
+    }
+    return a;
+}
+```
+
+# RotatedRect
+
+> 平面中旋转矩形的一个简单描述——center point、length of each side、rotation angle in degrees。
+
+* 模板类
+
+```c++
+
 ```
 
